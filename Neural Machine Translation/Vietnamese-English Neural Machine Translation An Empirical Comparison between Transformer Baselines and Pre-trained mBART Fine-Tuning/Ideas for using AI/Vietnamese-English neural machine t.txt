@@ -1,0 +1,113 @@
+# BÁO CÁO NGHIÊN CỨU
+## Từ Seq2Seq đến Transformer: Dịch máy Việt–Anh dựa trên bộ dữ liệu PhoMT
+
+*(Dựa trên bài báo: Doan, Nguyen, Tran, Hoang, Nguyen (VinAI Research) – "PhoMT: A High-Quality and Large-Scale Benchmark Dataset for Vietnamese-English Machine Translation")*
+
+---
+
+### 1. Vấn đề nghiên cứu
+
+Dịch máy (MT) Việt–Anh hiện gặp một nghịch lý: tiếng Việt có khoảng 100 triệu người sử dụng nhưng vẫn được xem là **ngôn ngữ ít tài nguyên (low-resource)** trong nghiên cứu MT, vì các bộ dữ liệu song song chất lượng cao hoặc không được công bố công khai, hoặc có quy mô quá nhỏ, hoặc chứa nhiều cặp câu bị lệch nghĩa (misalignment). Benchmark phổ biến nhất trước đây là **IWSLT15** chỉ có 133K cặp câu trích từ phụ đề TED-Talks. Trong khi đó, các bộ dữ liệu lớn hơn như JW300, OPUS GNOME/QED, CCAligned, WikiMatrix lại có tỷ lệ nhiễu cao — nhóm tác giả khảo sát ngẫu nhiên 100 cặp câu từ CCAligned và WikiMatrix, chỉ **37/100** và **31/100** cặp đạt chất lượng dịch tốt. **Vấn đề đặt ra là: làm sao xây dựng một bộ dữ liệu Việt–Anh vừa lớn vừa sạch, đủ để huấn luyện các mô hình MT hiện đại đạt chất lượng gần con người?**
+
+### 2. Câu hỏi nghiên cứu (RQs)
+
+- **RQ1:** Khi được huấn luyện trên một corpus lớn và được kiểm soát chất lượng, các mô hình neural MT chuyên biệt (Transformer-base, Transformer-big) cải thiện bao nhiêu so với các công cụ dịch tổng quát thương mại (Google Translate, Bing Translator)?
+- **RQ2:** Việc tiền huấn luyện đa ngôn ngữ (mBART) mang lại cải thiện thêm bao nhiêu so với huấn luyện từ đầu?
+- **RQ3:** Loại câu nào (theo lĩnh vực và theo độ dài) vẫn khó dịch nhất, và thứ hạng theo chỉ số tự động (BLEU/TER) có khớp với đánh giá của con người không?
+
+*(Lưu ý: bài báo gốc không thử nghiệm Seq2Seq/Seq2Seq+Attention như khung Topic 11 gợi ý, mà so sánh trực tiếp Transformer-base/big và mBART với hai công cụ dịch thương mại — nên RQ được điều chỉnh bám sát nội dung thực nghiệm có trong bài.)*
+
+### 3. Bộ dữ liệu — PhoMT
+
+PhoMT gồm **3,02 triệu cặp câu** Việt–Anh, lớn hơn IWSLT15 tới 2,9 triệu cặp. Dữ liệu được thu thập từ 6 nguồn tài liệu song song công khai:
+
+| Nguồn | Đặc điểm |
+|---|---|
+| WikiHow | 6.616 cặp bài hướng dẫn Anh–Việt |
+| TED-Talks (TED2020 v1) | 3.123 cặp phụ đề |
+| OpenSubtitles (v2018) | 3.886 cặp phụ đề phim/TV, sau lọc còn 3.312 (loại 574/3886 ≈ 15% chất lượng thấp) |
+| MediaWiki | kho dữ liệu content-translation dump |
+| News & Blogspot | 8 website học tiếng Anh song ngữ |
+
+Quy trình xây dựng gồm 4 giai đoạn: (1) thu thập cặp tài liệu song song, (2) tiền xử lý (lọc đoạn tiếng Anh chưa dịch trong MediaWiki, loại bỏ bảng/tham chiếu, tách câu bằng CoreNLP và VnCoreNLP/RDRSegmenter), (3) căn chỉnh câu song song bằng cách dịch câu tiếng Anh sang tiếng Việt qua Google Translate rồi dùng **3 công cụ Hunalign, Gargantua, Bleualign**, chỉ giữ cặp được ít nhất 2/3 công cụ đồng thuận, và (4) hậu xử lý loại trùng lặp và kiểm tra thủ công tập validation/test.
+
+**Bảng 1 (thống kê dữ liệu)** cho thấy phân bố theo lĩnh vực: OpenSubtitles đóng góp nhiều nhất (1.548.971 cặp) nhưng câu ngắn nhất (trung bình 9,7 từ tiếng Anh/11,1 âm tiết tiếng Việt) vì là hội thoại phim; ngược lại MediaWiki và Blogspot có câu dài hơn (~25-26 từ). Tổng cộng: **2.977.999 cặp huấn luyện, 18.719 validation, 19.151 test** (đã kiểm tra thủ công, loại bỏ 297 cặp lỗi). Đáng chú ý, quy trình căn chỉnh của nhóm tác giả đạt tỷ lệ bao phủ cao hơn OPUS: trên cùng corpus TED2020, OPUS chỉ căn được 326K câu tiếng Việt, còn phương pháp của PhoMT căn được 350K (cải thiện tương đối 7,5%).
+
+Kiểm tra thủ công cho thấy chất lượng rất cao: chỉ **0,17% cặp lỗi căn chỉnh và 0,66% cặp dịch kém** ở tập validation; con số tương ứng ở test là 0,14% và 0,59%.
+
+### 4. Baselines
+
+Năm hệ thống được so sánh: **Google Translate**, **Bing Translator** (công cụ thương mại), **Transformer-base**, **Transformer-big** (Vaswani et al., 2017, huấn luyện từ đầu trên PhoMT), và **mBART** (mô hình denoising auto-encoder đa ngôn ngữ, tiền huấn luyện trên 300GB văn bản tiếng Anh và 137GB tiếng Việt từ Common Crawl, sau đó fine-tune trên PhoMT).
+
+### 5. Hướng khảo sát
+
+Ngoài so sánh baseline, nhóm tác giả khảo sát thêm hai yếu tố:
+- **Ảnh hưởng của quy mô dữ liệu huấn luyện**: BLEU của Transformer-base trên tập validation Vi-to-En khi thay đổi số lượng cặp câu huấn luyện (Hình 1).
+- **Ảnh hưởng của chất lượng kiểm soát dữ liệu**: so sánh Transformer-base huấn luyện trên tập con OpenSubtitles của OPUS (1,55M cặp không trùng, cùng kích thước) với tập con OpenSubtitles của PhoMT.
+
+### 6. Thiết lập thực nghiệm
+
+Chỉ số đánh giá: **TER** (càng thấp càng tốt) và **BLEU** (case-sensitive, tính bằng SacreBLEU) — càng cao càng tốt. Mô hình được chọn theo checkpoint đạt BLEU cao nhất trên validation để áp dụng lên test. Ngoài đánh giá tự động, nhóm còn thực hiện **đánh giá con người**: lấy ngẫu nhiên 100 câu nguồn/hướng dịch, trộn ẩn danh đầu ra của 5 hệ thống, nhờ 3 người đánh giá tiếng Việt độc lập chọn bản dịch tốt nhất (hệ số đồng thuận Fleiss' kappa = 0,63 — mức khá tốt), các mâu thuẫn được giải quyết qua thảo luận.
+
+### 7. Kết quả
+
+**Bảng 2 (kết quả tổng thể)**: ở cả hai chiều dịch (En→Vi, Vi→En), **các baseline neural MT vượt trội hơn công cụ thương mại về TER/BLEU**, và trong nhóm neural, **mBART luôn đạt điểm tốt nhất** (ví dụ Vi→En test: TER 42,54 / BLEU 39,78, so với Google Translate 45,86 / 35,76). Về đánh giá con người, mBART cũng được chọn nhiều nhất (32/100 và 34/100 cho hai chiều). Tuy nhiên có một điểm **đáng chú ý**: ở chiều En→Vi, dù Transformer-base/big có TER/BLEU tốt hơn Google Translate 2+ điểm, con người lại **thích bản dịch của Google Translate hơn** (23/100 so với 13/100 và 18/100) — cho thấy **chỉ số tự động không luôn tương quan với sở thích con người**.
+
+**Bảng 3 (BLEU theo lĩnh vực, chiều Vi→En)**: MediaWiki đạt điểm cao nhất (mBART: 53,93) vì các văn bản thường chia sẻ chủ đề/sự kiện chung; News và TED-Talks theo sau; Blogspot, WikiHow, OpenSubtitles thấp hơn vì nội dung đặc thù chủ đề, ít lặp lại.
+
+**Bảng 4 (BLEU theo độ dài câu)**: các mô hình cho điểm thấp hơn với câu ngắn/trung bình (<20 từ, chiếm khoảng 79,64% dữ liệu test) so với câu dài — điều này hợp lý vì phần lớn câu ngắn đến từ OpenSubtitles (đối thoại phim), còn câu dài chủ yếu từ MediaWiki/News/TED-Talks.
+
+**Hình 1**: BLEU của Transformer-base tăng dần khi số lượng cặp câu huấn luyện tăng — khẳng định **quy mô dữ liệu lớn hơn giúp cải thiện chất lượng dịch**.
+
+**Thí nghiệm bổ sung**: Transformer-base huấn luyện trên tập con OpenSubtitles của **OPUS** (1,55M cặp) chỉ đạt BLEU 29,72 trên test, trong khi huấn luyện trên tập con OpenSubtitles của **PhoMT** (cùng kích thước) đạt 31,11 — chênh lệch có ý nghĩa thống kê, chứng minh **hiệu quả của việc kiểm soát chất lượng dữ liệu**, độc lập với yếu tố quy mô.
+
+### 8. Phân tích
+
+- **RQ1 & RQ2 được trả lời rõ ràng**: dữ liệu lớn + sạch giúp Transformer vượt qua công cụ thương mại về chỉ số tự động; mBART (nhờ tiền huấn luyện đa ngôn ngữ) tiếp tục cải thiện thêm, đạt tốt nhất ở cả BLEU/TER và đánh giá con người.
+- **RQ3**: câu khó dịch nhất là câu ngắn thuộc lĩnh vực hội thoại (OpenSubtitles) — có thể do tính khẩu ngữ, ngữ cảnh phụ thuộc thoại trước đó, khó nắm bắt chỉ từ một câu đơn lẻ. Đồng thời, khoảng cách giữa xếp hạng tự động và xếp hạng con người ở chiều En→Vi gợi ý rằng BLEU/TER chưa phản ánh đầy đủ các khía cạnh như độ tự nhiên hay phong cách diễn đạt tiếng Việt.
+
+### 9. Đầu ra
+
+Hệ thống NMT Việt–Anh/Anh–Việt tốt nhất (mBART fine-tune trên PhoMT) cùng phân tích lỗi theo lĩnh vực và độ dài câu — có thể xem là "bảng phân loại lỗi dịch" (translation error taxonomy) phục vụ nghiên cứu tiếp theo. Bộ dữ liệu PhoMT được công bố công khai tại GitHub của VinAIResearch.
+
+### 10. Kết luận
+
+PhoMT là bộ dữ liệu Việt–Anh chất lượng cao, quy mô lớn (3,02M cặp câu), được xây dựng bằng quy trình căn chỉnh đa công cụ nghiêm ngặt và kiểm tra thủ công. Thực nghiệm khẳng định **mBART đạt hiệu năng tốt nhất** trên cả đánh giá tự động lẫn con người, đồng thời cho thấy vai trò quan trọng của cả **quy mô** lẫn **chất lượng** dữ liệu huấn luyện.
+
+---
+
+## NỘI DUNG THUYẾT TRÌNH (6 slide, 2 người trình bày)
+
+**Người trình bày A — Slide 1–3 | Người trình bày B — Slide 4–6**
+
+**Slide 1 — Tiêu đề & Vấn đề nghiên cứu** *(A)*
+- Tên đề tài: Từ Seq2Seq đến Transformer: Dịch máy Việt–Anh với bộ dữ liệu PhoMT
+- Vấn đề: tiếng Việt là ngôn ngữ ít tài nguyên trong MT; các corpus lớn hiện có (CCAligned 37/100, WikiMatrix 31/100 cặp chất lượng tốt) đều nhiễu
+- 3 câu hỏi nghiên cứu (RQ1–RQ3)
+
+**Slide 2 — Bộ dữ liệu PhoMT** *(A)*
+- 3,02M cặp câu, 6 nguồn (WikiHow, TED-Talks, OpenSubtitles, MediaWiki, News, Blogspot)
+- Quy trình 4 giai đoạn; căn chỉnh bằng 3 công cụ (Hunalign, Gargantua, Bleualign), đồng thuận ≥2/3
+- Bảng 1: 2.977.999 train / 18.719 val / 19.151 test; kiểm tra thủ công tỉ lệ lỗi <1%
+
+**Slide 3 — Baseline & Thiết lập thực nghiệm** *(A)*
+- 5 hệ thống: Google Translate, Bing Translator, Transformer-base, Transformer-big, mBART
+- Chỉ số: TER, BLEU (SacreBLEU) + đánh giá con người (Fleiss' kappa = 0,63)
+
+**Slide 4 — Kết quả tổng thể (Bảng 2)** *(B)*
+- Neural MT > công cụ thương mại; mBART tốt nhất cả 2 chiều dịch, cả tự động lẫn con người
+- Điểm bất ngờ: En→Vi, con người vẫn thích Google Translate hơn Transformer dù BLEU/TER thấp hơn
+
+**Slide 5 — Phân tích theo lĩnh vực & độ dài (Bảng 3, 4, Hình 1)** *(B)*
+- MediaWiki dễ dịch nhất (chủ đề lặp lại); OpenSubtitles/Blogspot/WikiHow khó nhất
+- Câu ngắn (<20 từ, ~80% dữ liệu) khó dịch hơn câu dài
+- Quy mô dữ liệu lớn hơn → BLEU tăng (Hình 1); PhoMT sạch hơn OPUS cùng kích thước (31,11 vs 29,72 BLEU)
+
+**Slide 6 — Kết luận & Đóng góp** *(B)*
+- Trả lời RQ1–RQ3; mBART là lựa chọn tốt nhất
+- Đóng góp: bộ dữ liệu công khai + nghiên cứu thực nghiệm quy mô lớn đầu tiên cho Việt–Anh MT
+- Hướng mở: cải thiện dịch câu ngắn/hội thoại, kết hợp đánh giá con người vào huấn luyện
+
+---
+
+Nếu bạn muốn, mình có thể xuất nội dung này thành file Word (báo cáo) và file PowerPoint (6 slide) để nộp trực tiếp.
