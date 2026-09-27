@@ -1,0 +1,66 @@
+# From Course Project to Research Project
+
+### Implementation-oriented project
+Dataset → Algorithm → Train → Accuracy
+
+---
+
+### Research-oriented project
+Research Question → Baselines → Proposed Comparison / Improvement → Controlled Experiments → Analysis → Conclusion
+
+---
+
+**The key difference is not necessarily a new algorithm.**
+
+A good student research project can investigate:
+- When does one method outperform another?
+- Which component actually contributes to performance?
+- How robust is the model under noisy or limited data?
+- What are the trade-offs between accuracy and computational cost?
+- Why does the model fail on particular linguistic phenomena?
+
+---
+*Slide: 2 / 40*
+
+# Expected Research Structure
+
+Each team should define:
+
+1. **Problem**: What NLP/Text Mining problem are we studying?
+2. **Research Questions (RQs)**: What do we want to discover?
+3. **Dataset**: Which data can answer the RQs?
+4. **Baselines**: What existing approaches should be compared?
+5. **Investigation**: What will we improve, vary, or analyze?
+6. **Experiments**: How will the hypotheses be tested?
+7. **Evaluation**: Which metrics are appropriate?
+8. **Analysis**: Why do the results occur?
+9. **Output**: Paper + code + model + demo/visualization.
+
+---
+*Slide: 3 / 40*
+
+# Topic 11 – Vietnamese–English Machine Translation
+
+### Research Title
+*From Seq2Seq to Transformer: Vietnamese–English Neural Machine Translation*
+
+### Research Questions
+- How much does attention improve Seq2Seq translation?
+- How much improvement comes from Transformer architectures?
+- What types of Vietnamese sentences remain difficult to translate?
+
+### Baselines
+Seq2Seq → Seq2Seq + Attention → Transformer
+
+### Data
+- PhoMT.
+- IWSLT Vietnamese–English.
+
+### Metrics
+BLEU, chrF, Human Evaluation
+
+### Output
+NMT system + translation error taxonomy.
+
+---
+*Slide: 20 / 40*
